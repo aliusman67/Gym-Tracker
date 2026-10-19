@@ -11,7 +11,7 @@ Google Drive** kapan saja.
 ---
 
 ## 📥 Download APK
-APK siap pasang tersedia di halaman **[Releases](https://github.com/aliusman67/GymApp-Tracker/releases)**:
+APK siap pasang tersedia di halaman **[Releases](https://github.com/aliusman67/Gym-Tracker/releases)**:
 - **Rilis stabil** — tag versi (`v1.1.0`, dst.): `FitQuest-vX.Y.Z-arm64-v8a.apk`.
 - **Latest Build (main)** — pre-release yang diperbarui otomatis setiap ada perubahan
   di branch `main`.
