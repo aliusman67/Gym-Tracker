@@ -7,7 +7,52 @@ library;
 
 import 'package:toji_trainer/domain/models/models.dart';
 
-/// Maps a 3-phase progression onto rep/set/RPE schemes.
+/// Level pengalaman latihan pengguna — memengaruhi volume & intensitas.
+enum Experience {
+  beginner('Pemula', -1, 30),
+  intermediate('Menengah', 0, 0),
+  advanced('Mahir', 1, -15);
+
+  const Experience(this.label, this.setOffset, this.restAdjustSec);
+
+  final String label;
+
+  /// Penambahan/pengurangan jumlah set dari template.
+  final int setOffset;
+
+  /// Penyesuaian waktu istirahat (detik). Pemula istirahat lebih lama.
+  final int restAdjustSec;
+
+  static Experience fromName(String? name) => values.firstWhere(
+        (e) => e.name == name,
+        orElse: () => Experience.intermediate,
+      );
+}
+
+/// Jadwal mingguan yang menyesuaikan jumlah hari latihan pengguna.
+class WeeklySchedule {
+  /// Mengembalikan id planned-day untuk hari [dow] (1=Sen..7=Min),
+  /// atau `null` bila hari itu istirahat.
+  static String? dayIdFor(int dow, int daysPerWeek) {
+    switch (daysPerWeek) {
+      case 3: // Push / Lower / Pull — Sen, Rab, Jum
+        return const {1: 'day_1', 3: 'day_2', 5: 'day_3'}[dow];
+      case 4: // + Full body — Sen, Sel, Kam, Jum
+        return const {1: 'day_1', 2: 'day_2', 4: 'day_3', 5: 'day_5'}[dow];
+      case 6: // split penuh + active recovery Sabtu
+        return dow <= 6 ? 'day_$dow' : null;
+      case 5:
+      default: // split standar Senin–Jumat
+        return dow <= 5 ? 'day_$dow' : null;
+    }
+  }
+
+  /// Jumlah hari latihan aktual (untuk label UI).
+  static String label(int daysPerWeek) => '$daysPerWeek hari/minggu';
+}
+
+/// Maps a 3-phase progression onto rep/set/RPE schemes,
+/// disesuaikan dengan level pengalaman pengguna.
 class ProgramProgression {
   /// 12-week program, 4 weeks per phase.
   static int phaseForWeek(int week) {
@@ -23,42 +68,66 @@ class ProgramProgression {
       };
 
   static String phaseDescription(int phase) => switch (phase) {
-        1 => 'Minggu 1-4 · 3-4 set × 8-12 rep · RPE 7 · fokus bentuk & volume',
-        2 => 'Minggu 5-8 · 4-5 set × 4-6 rep · RPE 8 · naikkan beban',
-        _ => 'Minggu 9-12 · 3-5 set × 3-5 rep eksplosif + HIIT · RPE 8-9',
+        1 => 'Minggu 1-4 · volume sedang · fokus bentuk & volume',
+        2 => 'Minggu 5-8 · beban naik · fokus kekuatan',
+        _ => 'Minggu 9-12 · eksplosif + HIIT · fokus power & definisi',
       };
 
-  /// Returns (sets, reps, rpe, restSec) for an exercise given the phase.
-  /// [baseSets] is the phase-1 set count from the seed.
+  /// Rep target per fase, menyesuaikan level pengalaman.
+  static String repsFor(int phase, Experience exp) {
+    switch (exp) {
+      case Experience.beginner:
+        return switch (phase) { 1 => '10-15', 2 => '6-8', _ => '5-8' };
+      case Experience.advanced:
+        return switch (phase) { 1 => '6-10', 2 => '3-5', _ => '2-5' };
+      case Experience.intermediate:
+        return switch (phase) { 1 => '8-12', 2 => '4-6', _ => '3-5' };
+    }
+  }
+
+  /// RPE target per fase, menyesuaikan level pengalaman.
+  static String rpeFor(int phase, Experience exp) {
+    switch (exp) {
+      case Experience.beginner:
+        return switch (phase) { 1 => '6', 2 => '7', _ => '7-8' };
+      case Experience.advanced:
+        return switch (phase) { 1 => '8', 2 => '9', _ => '9-10' };
+      case Experience.intermediate:
+        return switch (phase) { 1 => '7', 2 => '8', _ => '8-9' };
+    }
+  }
+
+  /// Returns (sets, reps, rpe, restSec) for an exercise given the phase
+  /// and the user's experience level. [baseSets]/[baseRestSec] come from seed.
   static ({int sets, String reps, String rpe, int restSec}) apply(
     int phase, {
     required int baseSets,
     required int baseRestSec,
     bool isConditioning = false,
+    String experience = 'intermediate',
   }) {
-    switch (phase) {
-      case 2:
-        return (
-          sets: baseSets + 1,
-          reps: isConditioning ? 'work' : '4-6',
-          rpe: '8',
-          restSec: isConditioning ? baseRestSec : 150,
-        );
-      case 3:
-        return (
-          sets: baseSets,
-          reps: isConditioning ? 'max' : '3-5',
-          rpe: '8-9',
-          restSec: isConditioning ? baseRestSec : 180,
-        );
-      default:
-        return (
-          sets: baseSets,
-          reps: isConditioning ? 'work' : '8-12',
-          rpe: '7',
-          restSec: baseRestSec,
-        );
+    final exp = Experience.fromName(experience);
+    final sets = (baseSets + exp.setOffset).clamp(2, 6);
+
+    // Set strength-phase tetap menambah 1 set (kecuali pemula: tetap).
+    final phaseSets = phase == 2 && exp != Experience.beginner ? sets + 1 : sets;
+
+    var restSec = baseRestSec + exp.restAdjustSec;
+    if (!isConditioning) {
+      restSec = switch (phase) { 2 => 150, 3 => 180, _ => restSec };
     }
+    if (restSec < 45) restSec = 45;
+
+    final reps = isConditioning
+        ? (phase == 3 ? 'max' : 'work')
+        : repsFor(phase, exp);
+
+    return (
+      sets: phaseSets.clamp(2, 6),
+      reps: reps,
+      rpe: rpeFor(phase, exp),
+      restSec: restSec,
+    );
   }
 }
 

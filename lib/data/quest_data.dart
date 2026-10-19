@@ -1,10 +1,12 @@
-/// Solo Leveling–style quest definitions.
+/// Quest definitions (gamification layer).
 ///
-/// - **Daily Quest**: the iconic "Player's training" (Push-up/Sit-up/Squat ×100,
-///   Run 10 km) — resets every day, manual counters.
+/// - **Daily Quest**: resets every day and SYNCED with the gym program —
+///   training days use gym objectives (finish session, log sets, machine cardio,
+///   cooldown; progress auto-filled from the workout logger), rest days use
+///   recovery objectives (mobility, easy walk, sleep).
 /// - **Side Quest**: optional objectives, some auto-tracked from app data
-///   (protein target, meals logged, workout session), some manual.
-/// - **Main Quest**: the 12-week Toji program, rendered as quest "chapters".
+///   (protein target, meals logged, weigh-in), some manual (overload, water).
+/// - **Main Quest**: the 12-week program, rendered as quest "chapters".
 library;
 
 import 'package:flutter/material.dart';
@@ -18,6 +20,8 @@ enum QuestSource {
   autoProtein, // today's protein (g) vs profile target
   autoMeals, // count of today's food entries
   autoSession, // count of today's completed workout sessions
+  autoSets, // count of today's completed sets (workout logger)
+  autoWeighIn, // whether a body stat was logged today
 }
 
 class Quest {
@@ -44,60 +48,102 @@ class Quest {
   final IconData icon;
 }
 
-/// The daily "Player's Training" quest set.
-const List<Quest> dailyQuests = [
+/// Daily Quest pada HARI LATIHAN — tersinkron dengan sesi gym
+/// (progres terisi otomatis dari workout logger).
+const List<Quest> trainingDailyQuests = [
   Quest(
-    id: 'daily_pushup',
+    id: 'daily_session',
     type: QuestType.daily,
-    title: 'Push-up ×100',
-    description: '100 push-up (boleh dicicil)',
-    target: 100,
-    unit: 'rep',
-    xp: 30,
-    source: QuestSource.manualCount,
+    title: 'Selesaikan Sesi Gym',
+    description: 'Tuntaskan latihan gym terjadwal hari ini',
+    target: 1,
+    unit: 'x',
+    xp: 40,
+    source: QuestSource.autoSession,
     icon: Icons.fitness_center,
   ),
   Quest(
-    id: 'daily_situp',
+    id: 'daily_sets',
     type: QuestType.daily,
-    title: 'Sit-up ×100',
-    description: '100 sit-up (boleh dicicil)',
-    target: 100,
-    unit: 'rep',
-    xp: 30,
-    source: QuestSource.manualCount,
+    title: 'Log 16 Set Latihan',
+    description: 'Centang minimal 16 set di workout logger',
+    target: 16,
+    unit: 'set',
+    xp: 40,
+    source: QuestSource.autoSets,
+    icon: Icons.fact_check,
+  ),
+  Quest(
+    id: 'daily_cardio',
+    type: QuestType.daily,
+    title: 'Cardio Mesin 10 menit',
+    description: 'Treadmill / cycle / rowing setelah latihan',
+    target: 1,
+    unit: 'x',
+    xp: 20,
+    source: QuestSource.manualToggle,
+    icon: Icons.directions_bike,
+  ),
+  Quest(
+    id: 'daily_cooldown',
+    type: QuestType.daily,
+    title: 'Cooldown & Stretching',
+    description: 'Pendinginan 5-10 menit pasca latihan',
+    target: 1,
+    unit: 'x',
+    xp: 15,
+    source: QuestSource.manualToggle,
     icon: Icons.self_improvement,
   ),
+];
+
+/// Daily Quest pada HARI ISTIRAHAT — fokus pemulihan.
+const List<Quest> restDailyQuests = [
   Quest(
-    id: 'daily_squat',
+    id: 'daily_mobility',
     type: QuestType.daily,
-    title: 'Squat ×100',
-    description: '100 squat (boleh dicicil)',
-    target: 100,
-    unit: 'rep',
-    xp: 30,
-    source: QuestSource.manualCount,
-    icon: Icons.airline_seat_flat,
+    title: 'Mobility / Stretching',
+    description: '10-15 menit peregangan & mobilitas',
+    target: 1,
+    unit: 'x',
+    xp: 25,
+    source: QuestSource.manualToggle,
+    icon: Icons.accessibility_new,
   ),
   Quest(
-    id: 'daily_run',
+    id: 'daily_walk',
     type: QuestType.daily,
-    title: 'Lari 10 km',
-    description: 'Lari total 10 km',
-    target: 10,
-    unit: 'km',
-    xp: 40,
-    source: QuestSource.manualCount,
-    icon: Icons.directions_run,
+    title: 'Jalan Santai 30 menit',
+    description: 'Active recovery — jalan kaki atau sepeda ringan',
+    target: 1,
+    unit: 'x',
+    xp: 25,
+    source: QuestSource.manualToggle,
+    icon: Icons.directions_walk,
+  ),
+  Quest(
+    id: 'daily_sleep',
+    type: QuestType.daily,
+    title: 'Tidur 7-9 Jam',
+    description: 'Recovery adalah bagian dari program',
+    target: 1,
+    unit: 'x',
+    xp: 20,
+    source: QuestSource.manualToggle,
+    icon: Icons.bedtime,
   ),
 ];
+
+/// Pilih set Daily Quest sesuai jenis hari (latihan vs istirahat).
+List<Quest> dailyQuestsFor(bool isTrainingDay) =>
+    isTrainingDay ? trainingDailyQuests : restDailyQuests;
 
 /// Bonus for finishing ALL daily quests.
 const Quest dailyAllBonus = Quest(
   id: 'daily_all',
   type: QuestType.daily,
   title: 'Daily Quest Lengkap',
-  description: 'Selesaikan seluruh Daily Quest',
+  description: 'Selesaikan seluruh Daily Quest hari ini',
   target: 1,
   unit: 'x',
   xp: 50,
@@ -129,15 +175,26 @@ const List<Quest> sideQuests = [
     icon: Icons.restaurant,
   ),
   Quest(
-    id: 'side_session',
+    id: 'side_weighin',
     type: QuestType.side,
-    title: 'Selesaikan 1 Sesi Latihan',
-    description: 'Tuntaskan satu workout hari ini',
+    title: 'Timbang Berat Badan',
+    description: 'Catat berat hari ini di tab Progres',
     target: 1,
     unit: 'x',
-    xp: 40,
-    source: QuestSource.autoSession,
-    icon: Icons.fitness_center,
+    xp: 15,
+    source: QuestSource.autoWeighIn,
+    icon: Icons.monitor_weight,
+  ),
+  Quest(
+    id: 'side_overload',
+    type: QuestType.side,
+    title: 'Progressive Overload',
+    description: 'Naikkan beban minimal 1 latihan dari sesi terakhir',
+    target: 1,
+    unit: 'x',
+    xp: 30,
+    source: QuestSource.manualToggle,
+    icon: Icons.trending_up,
   ),
   Quest(
     id: 'side_water',
@@ -149,28 +206,6 @@ const List<Quest> sideQuests = [
     xp: 20,
     source: QuestSource.manualCount,
     icon: Icons.local_drink,
-  ),
-  Quest(
-    id: 'side_sleep',
-    type: QuestType.side,
-    title: 'Tidur 7+ Jam',
-    description: 'Recovery itu kunci',
-    target: 1,
-    unit: 'x',
-    xp: 25,
-    source: QuestSource.manualToggle,
-    icon: Icons.bedtime,
-  ),
-  Quest(
-    id: 'side_stretch',
-    type: QuestType.side,
-    title: 'Stretching 10 menit',
-    description: 'Mobility & pencegahan cedera',
-    target: 1,
-    unit: 'x',
-    xp: 15,
-    source: QuestSource.manualToggle,
-    icon: Icons.accessibility_new,
   ),
 ];
 

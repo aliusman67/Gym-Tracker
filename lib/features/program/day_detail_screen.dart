@@ -17,6 +17,8 @@ class DayDetailScreen extends ConsumerWidget {
     final daysAsync = ref.watch(plannedDaysProvider);
     final exAsync = ref.watch(exercisesForDayProvider(dayId));
     final startAsync = ref.watch(programStartProvider);
+    final profile = ref.watch(profileProvider).valueOrNull;
+    final experience = profile?.experience ?? 'intermediate';
     final week = currentWeek(startAsync.valueOrNull);
     final phase = currentPhase(startAsync.valueOrNull);
 
@@ -53,6 +55,10 @@ class DayDetailScreen extends ConsumerWidget {
                   Pill(text: 'Fase $phase'),
                   const SizedBox(width: 8),
                   Pill(text: 'Minggu $week', color: AppTheme.accentAlt),
+                  const SizedBox(width: 8),
+                  Pill(
+                      text: Experience.fromName(experience).label,
+                      color: const Color(0xFF4C9AFF)),
                   const Spacer(),
                   if (day != null)
                     Text('~${day.estMinutes} min',
@@ -61,12 +67,13 @@ class DayDetailScreen extends ConsumerWidget {
               ),
               const SizedBox(height: 16),
               for (final ex in exercises)
-                _ExerciseTile(ex: ex, phase: phase),
+                _ExerciseTile(ex: ex, phase: phase, experience: experience),
               const SizedBox(height: 12),
               FilledButton.icon(
                 onPressed: day == null
                     ? null
-                    : () => _start(context, ref, day!, phase, week),
+                    : () =>
+                        _start(context, ref, day!, phase, week, experience),
                 icon: const Icon(Icons.play_arrow),
                 label: const Text('Mulai Sesi Ini'),
               ),
@@ -79,7 +86,7 @@ class DayDetailScreen extends ConsumerWidget {
   }
 
   Future<void> _start(BuildContext context, WidgetRef ref, PlannedDay day,
-      int phase, int week) async {
+      int phase, int week, String experience) async {
     final db = ref.read(appDatabaseProvider);
     final exercises = await db.getExercisesForDay(day.id);
     final now = DateTime.now().millisecondsSinceEpoch;
@@ -99,7 +106,10 @@ class DayDetailScreen extends ConsumerWidget {
     for (final ex in exercises) {
       final isCond = ex.notes.contains('conditioning');
       final prog = ProgramProgression.apply(phase,
-          baseSets: ex.sets, baseRestSec: ex.restSec, isConditioning: isCond);
+          baseSets: ex.sets,
+          baseRestSec: ex.restSec,
+          isConditioning: isCond,
+          experience: experience);
       for (var i = 1; i <= prog.sets; i++) {
         logs.add(SetLog(
           id: '${sessionId}_${ex.id}_$i',
@@ -118,9 +128,11 @@ class DayDetailScreen extends ConsumerWidget {
 }
 
 class _ExerciseTile extends StatelessWidget {
-  const _ExerciseTile({required this.ex, required this.phase});
+  const _ExerciseTile(
+      {required this.ex, required this.phase, required this.experience});
   final PlannedExercise ex;
   final int phase;
+  final String experience;
 
   @override
   Widget build(BuildContext context) {
@@ -130,6 +142,7 @@ class _ExerciseTile extends StatelessWidget {
       baseSets: ex.sets,
       baseRestSec: ex.restSec,
       isConditioning: isCond,
+      experience: experience,
     );
     return Card(
       margin: const EdgeInsets.only(bottom: 10),

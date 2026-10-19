@@ -88,7 +88,15 @@ class _QuestScreenState extends ConsumerState<QuestScreen> {
               const SizedBox(height: 18),
               _sectionHeader('DAILY QUEST',
                   '${board.dailyDoneCount}/${board.daily.length}'),
-              const SizedBox(height: 8),
+              Padding(
+                padding: const EdgeInsets.only(top: 4, bottom: 8, left: 12),
+                child: Text(
+                  board.isTrainingDay
+                      ? 'Hari latihan — quest tersinkron dengan sesi gym-mu'
+                      : 'Hari istirahat — fokus pemulihan',
+                  style: const TextStyle(color: _Sys.dim, fontSize: 12),
+                ),
+              ),
               for (final st in board.daily) _questTile(st),
               const SizedBox(height: 6),
               _bonusTile(board),

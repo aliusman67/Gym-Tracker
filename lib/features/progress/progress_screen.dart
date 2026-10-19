@@ -256,6 +256,7 @@ class _ProgressScreenState extends ConsumerState<ProgressScreen> {
                 );
                 await ref.read(appDatabaseProvider).addBodyStat(stat);
                 ref.invalidate(bodyStatsProvider);
+                ref.invalidate(questBoardProvider);
                 if (ctx.mounted) Navigator.pop(ctx);
               },
               child: const Text('Simpan'),

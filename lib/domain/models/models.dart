@@ -22,6 +22,8 @@ class UserProfile {
     required this.targetProteinG,
     required this.targetCarbG,
     required this.targetFatG,
+    this.experience = 'intermediate', // beginner | intermediate | advanced
+    this.daysPerWeek = 5, // 3..6 hari latihan per minggu
     this.createdAt,
     this.updatedAt,
   });
@@ -37,6 +39,8 @@ class UserProfile {
   final double targetProteinG;
   final double targetCarbG;
   final double targetFatG;
+  final String experience;
+  final int daysPerWeek;
   final int? createdAt;
   final int? updatedAt;
 
@@ -57,6 +61,8 @@ class UserProfile {
     double? targetProteinG,
     double? targetCarbG,
     double? targetFatG,
+    String? experience,
+    int? daysPerWeek,
     int? updatedAt,
   }) =>
       UserProfile(
@@ -71,6 +77,8 @@ class UserProfile {
         targetProteinG: targetProteinG ?? this.targetProteinG,
         targetCarbG: targetCarbG ?? this.targetCarbG,
         targetFatG: targetFatG ?? this.targetFatG,
+        experience: experience ?? this.experience,
+        daysPerWeek: daysPerWeek ?? this.daysPerWeek,
         createdAt: createdAt,
         updatedAt: updatedAt ?? this.updatedAt,
       );
@@ -87,6 +95,8 @@ class UserProfile {
         'targetProteinG': targetProteinG,
         'targetCarbG': targetCarbG,
         'targetFatG': targetFatG,
+        'experience': experience,
+        'daysPerWeek': daysPerWeek,
         'createdAt': createdAt,
         'updatedAt': updatedAt,
       };
@@ -103,6 +113,8 @@ class UserProfile {
         targetProteinG: (m['targetProteinG'] as num?)?.toDouble() ?? 140,
         targetCarbG: (m['targetCarbG'] as num?)?.toDouble() ?? 300,
         targetFatG: (m['targetFatG'] as num?)?.toDouble() ?? 70,
+        experience: m['experience'] as String? ?? 'intermediate',
+        daysPerWeek: (m['daysPerWeek'] as num?)?.toInt() ?? 5,
         createdAt: (m['createdAt'] as num?)?.toInt(),
         updatedAt: (m['updatedAt'] as num?)?.toInt(),
       );

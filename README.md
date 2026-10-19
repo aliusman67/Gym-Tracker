@@ -10,6 +10,17 @@ Google Drive** kapan saja.
 
 ---
 
+## 📥 Download APK
+APK siap pasang tersedia di halaman **[Releases](https://github.com/aliusman67/GymApp-Tracker/releases)**:
+- **Rilis stabil** — tag versi (`v1.1.0`, dst.): `FitQuest-vX.Y.Z-arm64-v8a.apk`.
+- **Latest Build (main)** — pre-release yang diperbarui otomatis setiap ada perubahan
+  di branch `main`.
+
+Pilih APK sesuai arsitektur perangkat (umumnya **arm64-v8a**), unduh, lalu buka
+file-nya di Android (izinkan *install unknown apps* bila diminta).
+
+---
+
 ## Kenapa FitQuest?
 - **Program latihan siap pakai** — tidak perlu bingung "hari ini latihan apa".
 - **Pantau gizi otomatis** — target kalori & protein dihitung dari data dirimu.
@@ -21,11 +32,20 @@ Google Drive** kapan saja.
 
 ## Fitur Utama
 
-### 🏋️ Program Latihan 12 Minggu
-Program terstruktur dengan **5 hari latihan + 2 hari pemulihan**, fokus pada mesin &
-alat gym. Intensitas naik bertahap dalam **3 fase** (membangun dasar → kekuatan →
-power & definisi). Setiap latihan punya target set, repetisi, dan waktu istirahat,
-lengkap dengan **perkiraan durasi** tiap sesi (±50–75 menit).
+### 🏋️ Program Latihan 12 Minggu (Adaptif)
+Program terstruktur dengan fokus pada **mesin & alat gym**. Intensitas naik bertahap
+dalam **3 fase** (membangun dasar → kekuatan → power & definisi). Setiap latihan punya
+target set, repetisi, dan waktu istirahat, lengkap dengan **perkiraan durasi** tiap
+sesi (±50–75 menit).
+
+**Menyesuaikan kondisi awalmu** — saat onboarding kamu memilih:
+- **Level pengalaman** (Pemula / Menengah / Mahir) → menentukan jumlah set, rentang
+  rep, RPE, dan waktu istirahat (pemula: set lebih sedikit, rep lebih tinggi,
+  istirahat lebih lama; mahir: volume & intensitas lebih besar).
+- **Hari latihan per minggu** (3–6 hari) → jadwal mingguan otomatis disusun ulang
+  (mis. 3 hari: Push–Lower–Pull di Senin/Rabu/Jumat; hari lain jadi pemulihan).
+
+Semua bisa diubah kapan saja di **Pengaturan → Ubah Target & Format Latihan**.
 
 Saat latihan, kamu tinggal **mencatat beban & repetisi aktual**, mencentang set, dan
 **timer istirahat** berjalan otomatis.
@@ -50,14 +70,18 @@ Saat latihan, kamu tinggal **mencatat beban & repetisi aktual**, mencentang set,
   cari makanan, atau isi manual. Pantau progress kalori/protein/karbo/lemak setiap hari.
 
 ### 🎮 Sistem Quest (Gamifikasi)
-Ubah rutinitas jadi permainan:
-- **Daily Quest** — tantangan harian (mis. push-up, sit-up, squat, lari) yang di-reset
-  setiap hari.
-- **Side Quest** — misi tambahan; sebagian terisi otomatis dari aktivitasmu
-  (mis. memenuhi target protein, mencatat makanan, menyelesaikan latihan).
+Ubah rutinitas jadi permainan — quest **tersinkron dengan latihan gym-mu**:
+- **Daily Quest (hari latihan)** — selesaikan sesi gym dan log 16+ set (*otomatis*
+  dari workout logger), cardio mesin 10 menit, cooldown & stretching.
+  Selesaikan semua → **bonus XP**.
+- **Daily Quest (hari istirahat)** — mobility/stretching, jalan santai 30 menit,
+  tidur 7–9 jam.
+- **Side Quest** — penuhi target protein, log 3+ makanan, timbang berat badan
+  (*otomatis*), progressive overload, minum 8 gelas air.
 - **Main Quest** — program 12 minggu yang dibagi jadi beberapa "chapter".
 - **XP, Level & Rank** — selesaikan quest untuk mendapat XP, naik level, dan membuka
-  rank yang lebih tinggi. Ada notifikasi saat kamu **level up**.
+  rank yang lebih tinggi (E → D → C → B → A → S → Monarch). Ada notifikasi saat
+  kamu **level up**.
 
 ### 📈 Progres
 Catat berat badan dan lihat **grafik perkembangan** serta **volume latihan** dari sesi

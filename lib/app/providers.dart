@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:toji_trainer/data/database.dart';
+import 'package:toji_trainer/data/seed_program.dart';
 import 'package:toji_trainer/domain/models/models.dart';
 import 'package:toji_trainer/services/quest_service.dart';
 import 'package:toji_trainer/sync/drive_sync.dart';
@@ -136,18 +137,32 @@ final todaySessionsProvider = FutureProvider<List<WorkoutSession>>((ref) async {
 /// Live quest board combining definitions, saved progress, and today's data.
 final questBoardProvider = FutureProvider<QuestBoard>((ref) async {
   final svc = ref.watch(questServiceProvider);
+  final db = ref.watch(appDatabaseProvider);
   final start = ref.watch(programStartProvider).valueOrNull;
   final profile = ref.watch(profileProvider).valueOrNull;
   final foods = ref.watch(foodEntriesProvider).valueOrNull ?? <FoodEntry>[];
   final sessions = ref.watch(todaySessionsProvider).valueOrNull ?? [];
 
+  // Hari latihan vs istirahat mengikuti jadwal pengguna (daysPerWeek).
+  final now = DateTime.now();
+  final assignedId =
+      WeeklySchedule.dayIdFor(now.weekday, profile?.daysPerWeek ?? 5);
+  final isTrainingDay =
+      assignedId != null && assignedId != 'day_6' && assignedId != 'day_7';
+
+  final setsToday = await db.countCompletedSetsToday();
+  final weighedToday = await db.hasBodyStatToday();
+
   final proteinToday = foods.fold<double>(0, (s, e) => s + e.proteinG);
   return svc.buildBoard(
     programStart: start,
+    isTrainingDay: isTrainingDay,
     proteinToday: proteinToday,
     proteinTarget: profile?.targetProteinG ?? 0,
     mealsToday: foods.length,
     sessionsToday: sessions.length,
+    setsToday: setsToday,
+    weighedToday: weighedToday,
   );
 });
 

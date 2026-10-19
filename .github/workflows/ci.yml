@@ -1,6 +1,7 @@
 name: Flutter CI
 
-# Compile otomatis tiap ada push / pull request / trigger manual.
+# Compile otomatis tiap push / pull request / trigger manual.
+# Khusus push ke main: terbitkan rolling release "Latest Build" di halaman Releases.
 on:
   push:
     branches: ["**"]
@@ -13,10 +14,15 @@ concurrency:
   group: ci-${{ github.ref }}
   cancel-in-progress: true
 
+permissions:
+  contents: read
+
 jobs:
   build-android:
     name: Analyze · Test · Build APK
     runs-on: ubuntu-latest
+    permissions:
+      contents: write   # dibutuhkan untuk publish rolling release (main saja)
 
     steps:
       - name: Checkout
@@ -47,16 +53,29 @@ jobs:
       - name: Install dependencies
         run: flutter pub get
 
-      - name: Verify formatting
-        run: dart format --output=none --set-exit-if-changed lib test || echo "⚠️ Format berbeda (tidak memblokir build)."
-
       - name: Analyze
-        # --no-fatal-infos: info-level lints (mis. deprecation) tidak memblokir build.
-        # Warning & error tetap membuat CI gagal.
         run: flutter analyze --no-fatal-infos
 
       - name: Run tests
         run: flutter test
+
+      # Pakai keystore release dari secrets bila tersedia;
+      # tanpa secrets, Gradle otomatis fallback ke debug signing.
+      - name: Setup release signing (if secrets configured)
+        env:
+          KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+        run: |
+          if [ -n "$KEYSTORE_BASE64" ]; then
+            echo "$KEYSTORE_BASE64" | base64 -d > android/app/fitquest-release.jks
+            printf 'storePassword=%s\nkeyPassword=%s\nkeyAlias=%s\nstoreFile=fitquest-release.jks\n' \
+              "$KEYSTORE_PASSWORD" "$KEY_PASSWORD" "$KEY_ALIAS" > android/key.properties
+            echo "Release signing aktif (keystore dari secrets)."
+          else
+            echo "Secrets signing tidak ditemukan - build memakai debug signing."
+          fi
 
       - name: Build release APK (split per ABI)
         run: flutter build apk --release --split-per-abi
@@ -65,16 +84,53 @@ jobs:
         run: flutter build appbundle --release
         continue-on-error: true   # strip debug symbols butuh NDK; jangan blokir CI
 
-      - name: Upload APKs
+      - name: Rename artifacts (versi dari pubspec)
+        run: |
+          VERSION=$(grep '^version:' pubspec.yaml | awk '{print $2}' | cut -d'+' -f1)
+          SHORT_SHA=${GITHUB_SHA::7}
+          mkdir -p dist
+          for abi in arm64-v8a armeabi-v7a x86_64; do
+            f="build/app/outputs/flutter-apk/app-$abi-release.apk"
+            [ -f "$f" ] && cp "$f" "dist/FitQuest-v${VERSION}-${SHORT_SHA}-$abi.apk"
+          done
+          aab="build/app/outputs/bundle/release/app-release.aab"
+          [ -f "$aab" ] && cp "$aab" "dist/FitQuest-v${VERSION}-${SHORT_SHA}.aab"
+          ls -la dist
+
+      - name: Upload APKs (artifacts)
         uses: actions/upload-artifact@v4
         with:
           name: fitquest-apks
           path: build/app/outputs/flutter-apk/*.apk
           if-no-files-found: error
 
-      - name: Upload App Bundle
+      - name: Upload App Bundle (artifacts)
         uses: actions/upload-artifact@v4
         with:
           name: fitquest-appbundle
           path: build/app/outputs/bundle/release/*.aab
           if-no-files-found: warn
+
+      # Rolling release: hanya untuk push ke branch main.
+      # Selalu memperbarui tag "latest" sehingga halaman Releases punya
+      # build terbaru yang bisa langsung diunduh. Ditandai pre-release agar
+      # rilis stabil (tag v*) tetap menjadi "Latest" resmi repo.
+      - name: Publish rolling "Latest Build" release (main only)
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: latest
+          name: Latest Build (main)
+          body: |
+            Build otomatis dari branch `main`.
+
+            - Commit: `${{ github.sha }}`
+            - Tanggal: ${{ github.event.head_commit.timestamp }}
+            - Pesan commit: ${{ github.event.head_commit.message }}
+
+            **Cara install:** unduh APK sesuai arsitektur HP-mu
+            (umumnya `arm64-v8a`), lalu buka file-nya di Android.
+          files: dist/*.apk
+          prerelease: true
+          make_latest: false
+          draft: false

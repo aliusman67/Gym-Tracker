@@ -17,7 +17,7 @@ class AppDatabase {
   static final AppDatabase instance = AppDatabase._();
 
   static const _dbName = 'toji_trainer.db';
-  static const _dbVersion = 2;
+  static const _dbVersion = 3;
 
   Database? _db;
 
@@ -57,6 +57,17 @@ class AppDatabase {
           await db.insert('player_profile', {'id': 1, 'hunterName': 'Hunter', 'xp': 0},
               conflictAlgorithm: ConflictAlgorithm.ignore);
         }
+        if (oldV < 3) {
+          // Kolom kondisi awal pengguna (adaptasi format latihan).
+          try {
+            await db.execute(
+                "ALTER TABLE user_profile ADD COLUMN experience TEXT DEFAULT 'intermediate'");
+            await db.execute(
+                'ALTER TABLE user_profile ADD COLUMN daysPerWeek INTEGER DEFAULT 5');
+          } catch (_) {
+            // Kolom sudah ada — aman diabaikan.
+          }
+        }
       },
     );
   }
@@ -83,6 +94,7 @@ class AppDatabase {
         sex TEXT, ageYears INTEGER, heightCm REAL, startWeightKg REAL,
         activityLevel TEXT, goal TEXT,
         targetCalories REAL, targetProteinG REAL, targetCarbG REAL, targetFatG REAL,
+        experience TEXT DEFAULT 'intermediate', daysPerWeek INTEGER DEFAULT 5,
         createdAt INTEGER, updatedAt INTEGER
       )
     ''');
@@ -284,6 +296,31 @@ class AppDatabase {
       for (final r in rows)
         r['sessionId'] as String: ((r['vol'] as num?)?.toDouble() ?? 0)
     };
+  }
+
+  /// Number of completed sets across today's sessions (for quest tracking).
+  Future<int> countCompletedSetsToday() async {
+    final db = await database;
+    final now = DateTime.now();
+    final start = DateTime(now.year, now.month, now.day).millisecondsSinceEpoch;
+    final end = start + 86400000;
+    final rows = await db.rawQuery('''
+      SELECT COUNT(*) AS c FROM set_logs
+      WHERE completed = 1 AND sessionId IN (
+        SELECT id FROM workout_sessions WHERE dateMs >= ? AND dateMs < ?
+      )
+    ''', [start, end]);
+    return (rows.first['c'] as num?)?.toInt() ?? 0;
+  }
+
+  /// Whether a body stat (weigh-in) was logged today.
+  Future<bool> hasBodyStatToday() async {
+    final db = await database;
+    final now = DateTime.now();
+    final start = DateTime(now.year, now.month, now.day).millisecondsSinceEpoch;
+    final rows = await db.query('body_stats',
+        where: 'dateMs >= ?', whereArgs: [start], limit: 1);
+    return rows.isNotEmpty;
   }
 
   // -------------------------------------------------------------------------

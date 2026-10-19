@@ -1,18 +1,20 @@
 name: Release
 
-# Buat GitHub Release + lampirkan APK/AAB tiap push tag versi (v*).
+# Rilis stabil: tiap push tag versi (v1.0.0, v1.1.0, ...) → build,
+# rename artifact, lalu terbitkan GitHub Release dengan APK + AAB terlampir.
 on:
   push:
     tags:
       - "v*"
   workflow_dispatch:
 
+permissions:
+  contents: write
+
 jobs:
   release:
     name: Build & Publish Release
     runs-on: ubuntu-latest
-    permissions:
-      contents: write   # diperlukan untuk membuat GitHub Release
 
     steps:
       - name: Checkout
@@ -39,6 +41,24 @@ jobs:
       - name: Run tests
         run: flutter test
 
+      # Pakai keystore release dari secrets bila tersedia;
+      # tanpa secrets, Gradle otomatis fallback ke debug signing.
+      - name: Setup release signing (if secrets configured)
+        env:
+          KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+        run: |
+          if [ -n "$KEYSTORE_BASE64" ]; then
+            echo "$KEYSTORE_BASE64" | base64 -d > android/app/fitquest-release.jks
+            printf 'storePassword=%s\nkeyPassword=%s\nkeyAlias=%s\nstoreFile=fitquest-release.jks\n' \
+              "$KEYSTORE_PASSWORD" "$KEY_PASSWORD" "$KEY_ALIAS" > android/key.properties
+            echo "Release signing aktif (keystore dari secrets)."
+          else
+            echo "Secrets signing tidak ditemukan - build memakai debug signing."
+          fi
+
       - name: Build release APK (split per ABI)
         run: flutter build apk --release --split-per-abi
 
@@ -46,12 +66,38 @@ jobs:
         run: flutter build appbundle --release
         continue-on-error: true   # strip debug symbols butuh NDK; jangan blokir release
 
+      - name: Rename artifacts sesuai tag
+        run: |
+          TAG="${GITHUB_REF_NAME}"
+          # fallback untuk workflow_dispatch (bukan tag)
+          case "$TAG" in v*) ;; *) TAG="v$(grep '^version:' pubspec.yaml | awk '{print $2}' | cut -d'+' -f1)";; esac
+          mkdir -p dist
+          for abi in arm64-v8a armeabi-v7a x86_64; do
+            f="build/app/outputs/flutter-apk/app-$abi-release.apk"
+            [ -f "$f" ] && cp "$f" "dist/FitQuest-$TAG-$abi.apk"
+          done
+          aab="build/app/outputs/bundle/release/app-release.aab"
+          [ -f "$aab" ] && cp "$aab" "dist/FitQuest-$TAG.aab"
+          ls -la dist
+
       - name: Publish GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          files: |
-            build/app/outputs/flutter-apk/*.apk
-            build/app/outputs/bundle/release/*.aab
+          name: FitQuest ${{ github.ref_name }}
+          tag_name: ${{ github.ref_name }}
           generate_release_notes: true
           draft: false
           prerelease: false
+          make_latest: true
+          files: dist/*
+          body: |
+            ## FitQuest ${{ github.ref_name }} 🎉
+
+            **Cara install APK (sideload):**
+            1. Unduh APK sesuai arsitektur perangkat — umumnya **arm64-v8a**.
+            2. Buka file di Android → izinkan "Install unknown apps".
+
+            **Untuk Play Store:** gunakan file `.aab`.
+
+            > APK ditandatangani **release key** bila secrets `KEYSTORE_BASE64`
+            > dkk. terpasang di repo; jika tidak, fallback ke debug signing.

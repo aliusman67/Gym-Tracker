@@ -1,5 +1,6 @@
 /// Quest engine: merges quest definitions with saved per-day progress,
-/// tracks auto quests from app data, and awards XP exactly once per quest/day.
+/// tracks auto quests from app data (gym sessions, sets logged, nutrition,
+/// weigh-in), and awards XP exactly once per quest/day.
 library;
 
 import 'package:toji_trainer/data/database.dart';
@@ -20,10 +21,15 @@ class QuestState {
   final bool completed;
   final bool xpClaimed;
 
-  bool get isAuto =>
-      quest.source == QuestSource.autoProtein ||
-      quest.source == QuestSource.autoMeals ||
-      quest.source == QuestSource.autoSession;
+  bool get isAuto => switch (quest.source) {
+        QuestSource.autoProtein ||
+        QuestSource.autoMeals ||
+        QuestSource.autoSession ||
+        QuestSource.autoSets ||
+        QuestSource.autoWeighIn =>
+          true,
+        _ => false,
+      };
 
   double get fraction =>
       quest.target <= 0 ? 0 : (progress / quest.target).clamp(0.0, 1.0);
@@ -38,6 +44,7 @@ class QuestBoard {
     required this.dailyAllDone,
     required this.chapter,
     required this.week,
+    required this.isTrainingDay,
   });
 
   final PlayerProfile player;
@@ -46,21 +53,43 @@ class QuestBoard {
   final bool dailyAllDone;
   final MainQuestChapter chapter;
   final int week;
+  final bool isTrainingDay;
 
   int get dailyDoneCount => daily.where((q) => q.completed).length;
+}
+
+/// Live app-data values for today, used to fill auto quests.
+class _Live {
+  const _Live({
+    required this.proteinToday,
+    required this.proteinTarget,
+    required this.mealsToday,
+    required this.sessionsToday,
+    required this.setsToday,
+    required this.weighedToday,
+  });
+
+  final double proteinToday;
+  final double proteinTarget;
+  final int mealsToday;
+  final int sessionsToday;
+  final int setsToday;
+  final bool weighedToday;
 }
 
 class QuestService {
   QuestService(this.db);
   final AppDatabase db;
 
-  /// Auto-quest live values supplied by the caller (from today's app data).
   Future<QuestBoard> buildBoard({
     required DateTime? programStart,
+    required bool isTrainingDay,
     required double proteinToday,
     required double proteinTarget,
     required int mealsToday,
     required int sessionsToday,
+    required int setsToday,
+    required bool weighedToday,
   }) async {
     final now = DateTime.now();
     final dayKey = dayKeyOf(now);
@@ -70,27 +99,24 @@ class QuestService {
       saved[q.questId] = q;
     }
 
-    // Award any newly-achieved AUTO quests (once per day).
-    var current = player;
-    current = await _syncAuto(current, sideQuests, dayKey, saved,
-        proteinToday: proteinToday,
-        proteinTarget: proteinTarget,
-        mealsToday: mealsToday,
-        sessionsToday: sessionsToday);
+    final live = _Live(
+      proteinToday: proteinToday,
+      proteinTarget: proteinTarget,
+      mealsToday: mealsToday,
+      sessionsToday: sessionsToday,
+      setsToday: setsToday,
+      weighedToday: weighedToday,
+    );
 
-    // Build daily states.
-    final daily = <QuestState>[];
-    for (final q in dailyQuests) {
-      final s = saved[q.id];
-      final prog = s?.progress ?? 0;
-      final done = prog >= q.target;
-      daily.add(QuestState(
-        quest: q,
-        progress: prog,
-        completed: done,
-        xpClaimed: s?.xpClaimed ?? false,
-      ));
-    }
+    final dailies = dailyQuestsFor(isTrainingDay);
+
+    // Award any newly-achieved AUTO quests (daily + side), once per day.
+    var current = player;
+    current = await _syncAuto(current, [...dailies, ...sideQuests], dayKey,
+        saved, live);
+
+    // Build daily states (auto quests show live progress).
+    final daily = [for (final q in dailies) _state(q, saved[q.id], live)];
 
     // Award manual daily completions that reached target but weren't claimed.
     for (final st in daily) {
@@ -108,29 +134,7 @@ class QuestService {
       dailyAllDone = true;
     }
 
-    // Build side states (auto progress shown live).
-    final side = <QuestState>[];
-    for (final q in sideQuests) {
-      final s = saved[q.id];
-      double prog = s?.progress ?? 0;
-      bool done = s?.completed ?? false;
-      if (q.source == QuestSource.autoProtein) {
-        prog = proteinTarget > 0 && proteinToday >= proteinTarget ? 1 : 0;
-        done = prog >= 1;
-      } else if (q.source == QuestSource.autoMeals) {
-        prog = mealsToday.toDouble();
-        done = prog >= q.target;
-      } else if (q.source == QuestSource.autoSession) {
-        prog = sessionsToday.toDouble();
-        done = prog >= q.target;
-      }
-      side.add(QuestState(
-        quest: q,
-        progress: prog,
-        completed: done,
-        xpClaimed: s?.xpClaimed ?? false,
-      ));
-    }
+    final side = [for (final q in sideQuests) _state(q, saved[q.id], live)];
 
     final week = _weekOf(programStart, now);
     return QuestBoard(
@@ -140,6 +144,7 @@ class QuestService {
       dailyAllDone: dailyAllDone,
       chapter: chapterForWeek(week),
       week: week,
+      isTrainingDay: isTrainingDay,
     );
   }
 
@@ -181,6 +186,40 @@ class QuestService {
 
   // --- internals -----------------------------------------------------------
 
+  bool _achieved(Quest q, _Live live) => switch (q.source) {
+        QuestSource.autoProtein =>
+          live.proteinTarget > 0 && live.proteinToday >= live.proteinTarget,
+        QuestSource.autoMeals => live.mealsToday >= q.target,
+        QuestSource.autoSession => live.sessionsToday >= q.target,
+        QuestSource.autoSets => live.setsToday >= q.target,
+        QuestSource.autoWeighIn => live.weighedToday,
+        _ => false,
+      };
+
+  double _liveProgress(Quest q, _Live live) => switch (q.source) {
+        QuestSource.autoProtein => _achieved(q, live) ? 1 : 0,
+        QuestSource.autoMeals => live.mealsToday.toDouble(),
+        QuestSource.autoSession => live.sessionsToday.toDouble(),
+        QuestSource.autoSets => live.setsToday.toDouble(),
+        QuestSource.autoWeighIn => live.weighedToday ? 1 : 0,
+        _ => 0,
+      };
+
+  QuestState _state(Quest q, QuestProgress? s, _Live live) {
+    final isAuto = switch (q.source) {
+      QuestSource.manualCount || QuestSource.manualToggle => false,
+      _ => true,
+    };
+    final progress = isAuto ? _liveProgress(q, live) : (s?.progress ?? 0);
+    final completed = isAuto ? _achieved(q, live) : ((s?.completed ?? false) || progress >= q.target);
+    return QuestState(
+      quest: q,
+      progress: progress,
+      completed: completed,
+      xpClaimed: s?.xpClaimed ?? false,
+    );
+  }
+
   Future<QuestProgress> _loadOne(String questId, String dayKey) async {
     final all = await db.getQuestProgressForDay(dayKey);
     for (final q in all) {
@@ -194,7 +233,8 @@ class QuestService {
   }
 
   /// Award XP for [q] once, persisting xpClaimed.
-  Future<PlayerProfile> _claim(PlayerProfile current, Quest q, String dayKey) async {
+  Future<PlayerProfile> _claim(
+      PlayerProfile current, Quest q, String dayKey) async {
     final saved = await _loadOne(q.id, dayKey);
     if (saved.xpClaimed) return current;
     await db.saveQuestProgress(saved.copyWith(
@@ -210,25 +250,12 @@ class QuestService {
     PlayerProfile current,
     List<Quest> quests,
     String dayKey,
-    Map<String, QuestProgress> saved, {
-    required double proteinToday,
-    required double proteinTarget,
-    required int mealsToday,
-    required int sessionsToday,
-  }) async {
+    Map<String, QuestProgress> saved,
+    _Live live,
+  ) async {
     var p = current;
     for (final q in quests) {
-      bool achieved = false;
-      if (q.source == QuestSource.autoProtein) {
-        achieved = proteinTarget > 0 && proteinToday >= proteinTarget;
-      } else if (q.source == QuestSource.autoMeals) {
-        achieved = mealsToday >= q.target;
-      } else if (q.source == QuestSource.autoSession) {
-        achieved = sessionsToday >= q.target;
-      } else {
-        continue;
-      }
-      if (achieved && !(saved[q.id]?.xpClaimed ?? false)) {
+      if (_achieved(q, live) && !(saved[q.id]?.xpClaimed ?? false)) {
         p = await _claim(p, q, dayKey);
       }
     }

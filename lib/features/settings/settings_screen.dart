@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:toji_trainer/app/providers.dart';
 import 'package:toji_trainer/core/theme.dart';
+import 'package:toji_trainer/data/seed_program.dart';
 import 'package:toji_trainer/domain/nutrition_calc.dart';
 import 'package:toji_trainer/widgets/common.dart';
 
@@ -289,6 +290,9 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                   _row('Karbo', '${profile.targetCarbG.toInt()} g'),
                   _row('Lemak', '${profile.targetFatG.toInt()} g'),
                   _row('Goal', profile.goalEnum.label),
+                  _row('Pengalaman',
+                      Experience.fromName(profile.experience).label),
+                  _row('Jadwal latihan', '${profile.daysPerWeek} hari/minggu'),
                   const SizedBox(height: 12),
                   OutlinedButton.icon(
                     onPressed: _editTargets,
@@ -333,7 +337,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
           ),
           const SizedBox(height: 18),
           const Center(
-            child: Text('FitQuest v1.0.0',
+            child: Text('FitQuest v1.1.0',
                 style: TextStyle(color: AppTheme.textSecondary, fontSize: 12)),
           ),
           const SizedBox(height: 24),
@@ -375,6 +379,8 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
         TextEditingController(text: profile.startWeightKg.toString());
     Goal goal = profile.goalEnum;
     ActivityLevel act = profile.activityEnum;
+    Experience exp = Experience.fromName(profile.experience);
+    int days = profile.daysPerWeek;
 
     showModalBottomSheet(
       context: context,
@@ -387,11 +393,12 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
               right: 16,
               top: 16,
               bottom: MediaQuery.of(ctx).viewInsets.bottom + 16),
-          child: Column(
+          child: SingleChildScrollView(
+            child: Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Text('Ubah Target',
+              const Text('Ubah Target & Format Latihan',
                   style: TextStyle(fontWeight: FontWeight.w800, fontSize: 18)),
               const SizedBox(height: 14),
               TextField(
@@ -420,6 +427,29 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                     .toList(),
                 onChanged: (v) => setModal(() => act = v ?? act),
               ),
+              const SizedBox(height: 12),
+              DropdownButtonFormField<Experience>(
+                initialValue: exp,
+                dropdownColor: AppTheme.surfaceAlt,
+                decoration: const InputDecoration(labelText: 'Pengalaman latihan'),
+                items: Experience.values
+                    .map((e) =>
+                        DropdownMenuItem(value: e, child: Text(e.label)))
+                    .toList(),
+                onChanged: (v) => setModal(() => exp = v ?? exp),
+              ),
+              const SizedBox(height: 12),
+              DropdownButtonFormField<int>(
+                initialValue: days,
+                dropdownColor: AppTheme.surfaceAlt,
+                decoration:
+                    const InputDecoration(labelText: 'Hari latihan / minggu'),
+                items: const [3, 4, 5, 6]
+                    .map((d) =>
+                        DropdownMenuItem(value: d, child: Text('$d hari')))
+                    .toList(),
+                onChanged: (v) => setModal(() => days = v ?? days),
+              ),
               const SizedBox(height: 18),
               FilledButton(
                 onPressed: () async {
@@ -441,16 +471,21 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                     targetProteinG: t.proteinG,
                     targetCarbG: t.carbG,
                     targetFatG: t.fatG,
+                    experience: exp.name,
+                    daysPerWeek: days,
                     updatedAt: DateTime.now().millisecondsSinceEpoch,
                   );
                   await ref.read(appDatabaseProvider).saveProfile(updated);
                   ref.invalidate(profileProvider);
+                  ref.invalidate(questBoardProvider);
                   if (ctx.mounted) Navigator.pop(ctx);
-                  _toast('Target diperbarui');
+                  _toast('Target & format latihan diperbarui');
                 },
                 child: const Text('Simpan'),
               ),
+              const SizedBox(height: 8),
             ],
+            ),
           ),
         ),
       ),

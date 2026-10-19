@@ -50,9 +50,12 @@ class DashboardScreen extends ConsumerWidget {
           final calSum = entries.fold<double>(0, (s, e) => s + e.calories);
           final proSum = entries.fold<double>(0, (s, e) => s + e.proteinG);
 
+          // Jadwal menyesuaikan kondisi awal pengguna (hari latihan/minggu).
+          final assignedId =
+              WeeklySchedule.dayIdFor(todayDow, profile.daysPerWeek);
           PlannedDay? today;
           for (final d in daysAsync.valueOrNull ?? <PlannedDay>[]) {
-            if (d.dayOfWeek == todayDow) {
+            if (d.id == assignedId) {
               today = d;
               break;
             }
@@ -140,24 +143,24 @@ class DashboardScreen extends ConsumerWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      today == null
-                          ? 'Tidak ada jadwal'
-                          : (today.isRest ? 'Rest Day 😴' : today.title),
+                      (today == null || today.isRest)
+                          ? 'Rest Day 😴'
+                          : today.title,
                       style: const TextStyle(
                           fontSize: 18, fontWeight: FontWeight.w700),
                     ),
                     const SizedBox(height: 4),
                     Text(
-                      today == null
-                          ? '—'
-                          : (today.isRest ? 'Pemulihan penuh' : today.focus),
+                      (today == null || today.isRest)
+                          ? 'Jadwal pemulihan — istirahat juga bagian dari program'
+                          : '${today.focus} · disesuaikan untuk level ${profile.experience == 'beginner' ? 'Pemula' : profile.experience == 'advanced' ? 'Mahir' : 'Menengah'}',
                       style: const TextStyle(color: AppTheme.textSecondary),
                     ),
                     if (today != null && !today.isRest) ...[
                       const SizedBox(height: 14),
                       FilledButton.icon(
                         onPressed: () => _startWorkout(context, ref, today!,
-                            phase, week),
+                            phase, week, profile.experience),
                         icon: const Icon(Icons.play_arrow),
                         label: const Text('Mulai Latihan'),
                       ),
@@ -275,7 +278,7 @@ class DashboardScreen extends ConsumerWidget {
 
 /// Creates a session + set logs then navigates to the logger.
 Future<void> _startWorkout(BuildContext context, WidgetRef ref, PlannedDay day,
-    int phase, int week) async {
+    int phase, int week, String experience) async {
   final db = ref.read(appDatabaseProvider);
   final exercises = await db.getExercisesForDay(day.id);
   final sessionId =
@@ -303,6 +306,7 @@ Future<void> _startWorkout(BuildContext context, WidgetRef ref, PlannedDay day,
       baseSets: ex.sets,
       baseRestSec: ex.restSec,
       isConditioning: isCond,
+      experience: experience,
     );
     for (var i = 1; i <= prog.sets; i++) {
       logs.add(SetLog(
