@@ -80,6 +80,9 @@ jobs:
       - name: Build release APK (split per ABI)
         run: flutter build apk --release --split-per-abi
 
+      - name: Build universal release APK (semua ABI — paling kompatibel)
+        run: flutter build apk --release
+
       - name: Build release App Bundle
         run: flutter build appbundle --release
         continue-on-error: true   # strip debug symbols butuh NDK; jangan blokir CI
@@ -93,6 +96,8 @@ jobs:
             f="build/app/outputs/flutter-apk/app-$abi-release.apk"
             [ -f "$f" ] && cp "$f" "dist/FitQuest-v${VERSION}-${SHORT_SHA}-$abi.apk"
           done
+          uni="build/app/outputs/flutter-apk/app-release.apk"
+          [ -f "$uni" ] && cp "$uni" "dist/FitQuest-v${VERSION}-${SHORT_SHA}-universal.apk"
           aab="build/app/outputs/bundle/release/app-release.aab"
           [ -f "$aab" ] && cp "$aab" "dist/FitQuest-v${VERSION}-${SHORT_SHA}.aab"
           ls -la dist

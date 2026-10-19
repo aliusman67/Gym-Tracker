@@ -86,13 +86,11 @@ flutter pub get
 > Jika `pub get` mengeluh soal versi (mis. `googleapis`/`go_router`), longgarkan versi di
 > `pubspec.yaml` atau jalankan `flutter pub upgrade --major-versions`.
 
-### 4. Set minSdk Android = 21 (untuk google_sign_in)
+### 4. minSdk (tidak perlu diubah)
 
-Buka `android/app/build.gradle`, di dalam `android { defaultConfig { ... } }`:
-
-```gradle
-minSdkVersion 21
-```
+`android/app/build.gradle.kts` memakai `minSdk = flutter.minSdkVersion` — Flutter
+versi kini menetapkan **API 24 (Android 7.0)**, sudah memenuhi syarat semua plugin
+(google_sign_in butuh ≥21). Target SDK mengikuti `flutter.targetSdkVersion` (36/Android 16).
 
 ### 5. Setup Google Sign-In / Drive (WAJIB untuk fitur sync)
 
@@ -142,11 +140,22 @@ Dashboard. Tanggal mulai program dicatat otomatis → minggu & fase berjalan dih
 ### 7. Build release (APK optimal)
 
 ```bash
-flutter build apk --release --split-per-abi
+flutter build apk --release --split-per-abi   # APK kecil per arsitektur
+flutter build apk --release                   # APK UNIVERSAL — semua perangkat Android
 ```
 
-Hasil di `build/app/outputs/flutter-apk/`. `--split-per-abi` memecah APK per arsitektur
-(arm64-v8a, armeabi-v7a, x86_64) → ukuran lebih kecil. R8/minify aktif default di release.
+Hasil di `build/app/outputs/flutter-apk/`:
+- `app-<abi>-release.apk` — per arsitektur (arm64-v8a, armeabi-v7a, x86_64), ukuran lebih kecil.
+- `app-release.apk` — **universal** (arm64-v8a + armeabi-v7a + x86_64), jalan di
+  **semua perangkat Android 7.0+ (API 24)**; paling aman untuk sideload bila tidak
+  tahu arsitektur perangkat.
+
+> R8/minify sengaja **dimatikan** (stabilitas lintas perangkat — googleapis memakai
+> refleksi). Kode Dart tetap AOT + tree-shaken. Signing release otomatis dipakai bila
+> `android/key.properties` ada (lihat `docs/RELEASE.md`).
+
+**Download APK jadi**: halaman [Releases](https://github.com/aliusman67/Gym-Tracker/releases)
+(disediakan CI/CD GitHub Actions: `FitQuest-<versi>-universal.apk` + per-ABI + `.aab`).
 
 Untuk Play Store:
 
