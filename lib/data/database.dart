@@ -62,14 +62,7 @@ class AppDatabase {
         }
         if (oldV < 3) {
           // Kolom kondisi awal pengguna (adaptasi format latihan).
-          try {
-            await db.execute(
-                "ALTER TABLE user_profile ADD COLUMN experience TEXT DEFAULT 'intermediate'");
-            await db.execute(
-                'ALTER TABLE user_profile ADD COLUMN daysPerWeek INTEGER DEFAULT 5');
-          } catch (_) {
-            // Kolom sudah ada — aman diabaikan.
-          }
+          await repairProfileSchema(db);
         }
       },
     );
@@ -205,10 +198,32 @@ class AppDatabase {
     return UserProfile.fromMap(rows.first);
   }
 
+  /// Pastikan kolom v3 (experience, daysPerWeek) ada di user_profile.
+  /// Idempoten & tanpa menghapus data — dipakai migrasi maupun fallback save.
+  static Future<void> repairProfileSchema(Database db) async {
+    final cols = await db.rawQuery('PRAGMA table_info(user_profile)');
+    final names = cols.map((c) => c['name']?.toString() ?? '').toSet();
+    if (!names.contains('experience')) {
+      await db.execute(
+          "ALTER TABLE user_profile ADD COLUMN experience TEXT DEFAULT 'intermediate'");
+    }
+    if (!names.contains('daysPerWeek')) {
+      await db.execute(
+          'ALTER TABLE user_profile ADD COLUMN daysPerWeek INTEGER DEFAULT 5');
+    }
+  }
+
   Future<void> saveProfile(UserProfile profile) async {
     final db = await database;
-    await db.insert('user_profile', profile.toMap(),
-        conflictAlgorithm: ConflictAlgorithm.replace);
+    try {
+      await db.insert('user_profile', profile.toMap(),
+          conflictAlgorithm: ConflictAlgorithm.replace);
+    } catch (_) {
+      // Skema lama (kolom baru belum ada) → perbaiki tanpa hapus data, ulangi.
+      await repairProfileSchema(db);
+      await db.insert('user_profile', profile.toMap(),
+          conflictAlgorithm: ConflictAlgorithm.replace);
+    }
   }
 
   // -------------------------------------------------------------------------

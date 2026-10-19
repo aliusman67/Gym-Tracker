@@ -117,9 +117,15 @@ class _QuestScreenState extends ConsumerState<QuestScreen> {
       children: [
         Container(width: 4, height: 18, color: _Sys.cyan),
         const SizedBox(width: 8),
-        Text(title,
-            style: const TextStyle(
-                color: _Sys.text, fontWeight: FontWeight.w800, letterSpacing: 1)),
+        Flexible(
+          child: Text(title,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(
+                  color: _Sys.text,
+                  fontWeight: FontWeight.w800,
+                  letterSpacing: 1)),
+        ),
         const Spacer(),
         if (badge.isNotEmpty)
           Text(badge,
@@ -191,11 +197,17 @@ class _QuestScreenState extends ConsumerState<QuestScreen> {
           const SizedBox(height: 8),
           Row(
             children: [
-              Text(_progText(st),
-                  style: const TextStyle(color: _Sys.dim, fontSize: 12)),
-              const Spacer(),
+              // Expanded + ellipsis: teks mengalah dulu, tombol tidak pernah
+              // terdorong keluar (fix overflow di layar sempit/font besar).
+              Expanded(
+                child: Text(_progText(st),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(color: _Sys.dim, fontSize: 12)),
+              ),
+              const SizedBox(width: 8),
               if (st.quest.source == QuestSource.manualCount) ...[
-                _smallBtn('−$stepNum(step)',
+                _smallBtn('−${stepNum(step)}',
                     () => _act(() => ref
                         .read(questServiceProvider)
                         .increment(q, -step))),
@@ -387,14 +399,22 @@ class _MainQuestCard extends StatelessWidget {
             children: [
               const Icon(Icons.auto_stories, color: _Sys.gold),
               const SizedBox(width: 8),
-              const Text('MAIN QUEST',
-                  style: TextStyle(
-                      color: _Sys.gold,
-                      fontWeight: FontWeight.w800,
-                      letterSpacing: 1)),
+              const Flexible(
+                child: Text('MAIN QUEST',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                        color: _Sys.gold,
+                        fontWeight: FontWeight.w800,
+                        letterSpacing: 1)),
+              ),
               const Spacer(),
-              Text('Minggu ${board.week}/12',
-                  style: const TextStyle(color: _Sys.dim, fontSize: 12)),
+              Flexible(
+                child: Text('Minggu ${board.week}/12',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(color: _Sys.dim, fontSize: 12)),
+              ),
             ],
           ),
           const SizedBox(height: 8),

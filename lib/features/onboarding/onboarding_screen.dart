@@ -41,35 +41,78 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
     );
   }
 
+  bool _saving = false;
+
   Future<void> _save() async {
-    final t = _targets;
-    final now = DateTime.now().millisecondsSinceEpoch;
-    final profile = UserProfile(
-      id: 1,
-      sex: _sex.name,
-      ageYears: int.tryParse(_age.text) ?? 25,
-      heightCm: double.tryParse(_height.text) ?? 175,
-      startWeightKg: double.tryParse(_weight.text) ?? 70,
-      activityLevel: _activity.name,
-      goal: _goal.name,
-      targetCalories: t.calories,
-      targetProteinG: t.proteinG,
-      targetCarbG: t.carbG,
-      targetFatG: t.fatG,
-      experience: _exp.name,
-      daysPerWeek: _days,
-      createdAt: now,
-      updatedAt: now,
-    );
-    await ref.read(appDatabaseProvider).saveProfile(profile);
+    if (_saving) return;
+    setState(() => _saving = true);
+    try {
+      final t = _targets;
+      final now = DateTime.now().millisecondsSinceEpoch;
+      final profile = UserProfile(
+        id: 1,
+        sex: _sex.name,
+        ageYears: int.tryParse(_age.text) ?? 25,
+        heightCm: double.tryParse(_height.text) ?? 175,
+        startWeightKg: double.tryParse(_weight.text) ?? 70,
+        activityLevel: _activity.name,
+        goal: _goal.name,
+        targetCalories: t.calories,
+        targetProteinG: t.proteinG,
+        targetCarbG: t.carbG,
+        targetFatG: t.fatG,
+        experience: _exp.name,
+        daysPerWeek: _days,
+        createdAt: now,
+        updatedAt: now,
+      );
 
-    // Set program start date to today.
-    await ref.read(prefsProvider).setInt('program_start_ms', now);
+      final db = ref.read(appDatabaseProvider);
+      try {
+        await db.saveProfile(profile);
+      } catch (_) {
+        // Upaya terakhir: reset DB (fresh) lalu simpan sekali lagi.
+        final ok = await db.deleteAndRecreate();
+        if (!ok) rethrow;
+        await db.saveProfile(profile);
+      }
 
-    appHasProfile = true;
-    ref.invalidate(profileProvider);
-    ref.invalidate(programStartProvider);
-    if (mounted) context.go('/dashboard');
+      // Tanggal mulai program — tidak fatal bila preferences gagal.
+      try {
+        await ref.read(prefsProvider).setInt('program_start_ms', now);
+      } catch (_) {}
+
+      appHasProfile = true;
+      ref.invalidate(profileProvider);
+      ref.invalidate(programStartProvider);
+      if (mounted) context.go('/dashboard');
+    } catch (e) {
+      // Jangan biarkan error tertelan (gejala: tombol tampak tidak melakukan
+      // apa-apa). Tampilkan penyebabnya agar bisa ditindaklanjuti.
+      if (mounted) {
+        showDialog<void>(
+          context: context,
+          builder: (ctx) => AlertDialog(
+            title: const Text('Gagal memulai program'),
+            content: SingleChildScrollView(
+              child: Text(
+                'Terjadi kesalahan saat menyimpan data:\n\n$e\n\n'
+                'Coba tutup dan buka ulang aplikasi. Bila berlanjut, laporkan '
+                'pesan di atas.',
+              ),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(ctx),
+                child: const Text('Tutup'),
+              ),
+            ],
+          ),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _saving = false);
+    }
   }
 
   @override
@@ -218,8 +261,15 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
               const SizedBox(height: 24),
 
               FilledButton(
-                onPressed: _save,
-                child: const Text('Mulai Program'),
+                onPressed: _saving ? null : _save,
+                child: _saving
+                    ? const SizedBox(
+                        width: 22,
+                        height: 22,
+                        child: CircularProgressIndicator(
+                            strokeWidth: 2.5, color: Colors.white),
+                      )
+                    : const Text('Mulai Program'),
               ),
               const SizedBox(height: 12),
             ],
