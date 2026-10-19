@@ -51,6 +51,9 @@ class AppDatabase {
         await db.execute('PRAGMA foreign_keys = ON');
       },
       onCreate: _onCreate,
+      // Downgrade (install APK versi lama di atas DB baru) → reset DB,
+      // daripada melempar exception yang bikin black screen saat startup.
+      onDowngrade: onDatabaseDowngradeDelete,
       onUpgrade: (db, oldV, newV) async {
         if (oldV < 2) {
           await _createQuestTables(db);
@@ -476,6 +479,23 @@ class AppDatabase {
         }
       }
       await batch.commit(noResult: true);
+    }
+  }
+
+  /// Self-heal: hapus DB (korup/gagal migrasi) lalu bangun ulang dari nol.
+  /// Dipanggil sekali dari main() bila pembukaan DB gagal, agar app tetap
+  /// bisa menyala daripada black screen.
+  Future<bool> deleteAndRecreate() async {
+    try {
+      final dir = await getDatabasesPath();
+      final path = p.join(dir, _dbName);
+      await _db?.close();
+      _db = null;
+      await databaseFactory.deleteDatabase(path);
+      _db = await _open();
+      return true;
+    } catch (_) {
+      return false;
     }
   }
 

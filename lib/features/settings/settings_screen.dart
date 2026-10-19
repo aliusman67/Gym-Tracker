@@ -337,7 +337,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
           ),
           const SizedBox(height: 18),
           const Center(
-            child: Text('FitQuest v1.1.0',
+            child: Text('FitQuest v1.1.1',
                 style: TextStyle(color: AppTheme.textSecondary, fontSize: 12)),
           ),
           const SizedBox(height: 24),

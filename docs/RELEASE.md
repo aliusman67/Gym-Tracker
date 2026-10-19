@@ -7,8 +7,10 @@
 - `android/app/build.gradle.kts` membaca `key.properties`:
   - ada → release build ditandatangani **release key**;
   - tidak ada (mis. CI tanpa secrets) → fallback ke **debug signing** (build tetap jalan).
-- Release build juga mengaktifkan **R8 minify + resource shrinking**
-  (`android/app/proguard-rules.pro`).
+- **R8 minify/shrinkResources DIMATIKAN** (stabilitas): `googleapis` &
+  `google_sign_in` memakai refleksi; R8 pernah memicu black screen di perangkat
+  nyata. Kode Dart tetap AOT + tree-shaken sehingga ukuran APK tetap optimal.
+  File `android/app/proguard-rules.pro` disimpan bila nanti ingin dicoba lagi.
 
 > ⚠️ **BACKUP `fitquest-release.jks` + password-nya!** Kalau hilang, kamu tidak bisa
 > lagi merilis update sebagai app yang sama (terutama di Play Store). Simpan salinan

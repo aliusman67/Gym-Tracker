@@ -52,12 +52,10 @@ android {
             } else {
                 signingConfigs.getByName("debug")
             }
-            isMinifyEnabled = true
-            isShrinkResources = true
-            proguardFiles(
-                getDefaultProguardFile("proguard-android-optimize.txt"),
-                "proguard-rules.pro",
-            )
+            // R8 minify/shrink SENGAJA dimatikan: googleapis & google_sign_in
+            // memakai refleksi; pemangkasan R8 memicu crash/black screen di
+            // sebagian perangkat. Default Flutter (tanpa minify) lebih stabil,
+            // dan kode Dart sudah AOT + tree-shaken.
         }
     }
 }
